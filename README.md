@@ -79,13 +79,13 @@ Run an HTTP prediction server (loads latest checkpoint and class map):
 set CHECKPOINT_PATH=checkpoints\best.pt
 set CLASS_MAP_PATH=outputs\class_to_idx.json
 set MODEL_NAME=resnet18
-set SQLITE_DB_PATH=outputs\app.db
+set SQLITE_DB_PATH=database\app.db
 uvicorn src.app:app --host 0.0.0.0 --port 8000
 ```
 
 Endpoints:
 - GET /health — service status
-- GET /history?usermail=<email> — returns saved predictions for a user (newest first)
+- POST /history - usermail: <email> — returns saved predictions for a user (newest first)
 - POST /predict — multipart file field `file`; returns top-k predictions
 
 Prediction results are also saved to SQLite (`predictions` table) with filename, saved image path, timestamp, top prediction, confidence, reliability, and full JSON response.
