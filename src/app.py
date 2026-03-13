@@ -291,7 +291,9 @@ def get_prediction_history_by_usermail(db_path: str, usermail: str):
                 saved_image_path,
                 age_estimate,
                 confidence,
-                reliability
+                reliability,
+                feedback,
+                rating_score
             FROM predictions
             WHERE lower(usermail) = lower(?)
             ORDER BY created_at DESC, id DESC
@@ -306,9 +308,9 @@ def get_prediction_history_by_usermail(db_path: str, usermail: str):
             "usermail": row["usermail"],
             "created_at": row["created_at"],
             "original_filename": row["original_filename"],
-            "saved_filename": row["saved_filename"],
-            "saved_image_path": row["saved_image_path"],
             "saved_image_url": to_upload_url(row["saved_image_path"]),
+            "feedback": row["feedback"],
+            "rating_score": row["rating_score"],
             "prediction": {
                 "age_estimate": row["age_estimate"],
                 "confidence": row["confidence"],
