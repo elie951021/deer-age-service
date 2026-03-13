@@ -1,0 +1,7 @@
+.venv
+data/
+images/
+Desc/
+venv
+__pycache__/
+src/__pycache__/

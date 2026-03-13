@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeerAge - Jawbone Age Classification</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a472a 0%, #2d5a3f 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 30px 0;
+            color: white;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        header h1 .icon {
+            font-size: 2.8rem;
+        }
+
+        header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .main-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .upload-section {
+            padding: 40px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        .drop-zone {
+            border: 3px dashed #ccc;
+            border-radius: 15px;
+            padding: 60px 40px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #fafafa;
+        }
+
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: #2d5a3f;
+            background: #f0f7f2;
+        }
+
+        .drop-zone .icon {
+            font-size: 4rem;
+            margin-bottom: 15px;
+        }
+
+        .drop-zone h3 {
+            color: #555;
+            margin-bottom: 10px;
+        }
+
+        .drop-zone p {
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        .drop-zone input[type="file"] {
+            display: none;
+        }
+
+        .btn {
+            background: #2d5a3f;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 15px;
+        }
+
+        .btn:hover {
+            background: #1a472a;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .preview-section {
+            display: none;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+
+        .preview-section.active {
+            display: block;
+        }
+
+        .preview-container {
+            display: flex;
+            gap: 30px;
+            align-items: flex-start;
+        }
+
+        .image-preview {
+            flex: 1;
+            max-width: 400px;
+        }
+
+        .image-preview img {
+            width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+
+        .image-preview .filename {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .results-panel {
+            flex: 1;
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .result-card h2 {
+            color: #2d5a3f;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .age-display {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #2d5a3f, #1a472a);
+            border-radius: 12px;
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        .age-display .age {
+            font-size: 3rem;
+            font-weight: bold;
+        }
+
+        .age-display .label {
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+
+        .confidence-bar {
+            margin: 20px 0;
+        }
+
+        .confidence-bar .label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .confidence-bar .bar {
+            height: 12px;
+            background: #e9ecef;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .confidence-bar .fill {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.5s ease;
+        }
+
+        .confidence-bar .fill.high {
+            background: linear-gradient(90deg, #28a745, #20c997);
+        }
+
+        .confidence-bar .fill.moderate {
+            background: linear-gradient(90deg, #ffc107, #fd7e14);
+        }
+
+        .confidence-bar .fill.low {
+            background: linear-gradient(90deg, #dc3545, #e83e8c);
+        }
+
+        .reliability-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .reliability-badge.high {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .reliability-badge.moderate {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .reliability-badge.low {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .characteristics {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            color: #555;
+        }
+
+        .characteristics strong {
+            color: #2d5a3f;
+        }
+
+        .warnings {
+            margin-top: 15px;
+        }
+
+        .warning-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px;
+            background: #fff3cd;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            color: #856404;
+        }
+
+        .warning-item .icon {
+            font-size: 1.2rem;
+        }
+
+        .alternatives {
+            margin-top: 20px;
+        }
+
+        .alternatives h4 {
+            color: #666;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+
+        .alt-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .alt-item .age {
+            font-weight: 600;
+            color: #2d5a3f;
+        }
+
+        .alt-item .conf {
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #e9ecef;
+            border-top-color: #2d5a3f;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            display: none;
+            padding: 20px;
+            background: #f8d7da;
+            color: #721c24;
+            border-radius: 10px;
+            margin: 20px;
+            text-align: center;
+        }
+
+        .error-message.active {
+            display: block;
+        }
+
+        .new-upload-btn {
+            display: block;
+            width: 100%;
+            margin-top: 20px;
+            background: #6c757d;
+        }
+
+        .new-upload-btn:hover {
+            background: #5a6268;
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: rgba(255,255,255,0.7);
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: rgba(255,255,255,0.9);
+        }
+
+        .info-section {
+            padding: 30px;
+            background: #f8f9fa;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .info-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .info-card .icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .info-card h4 {
+            color: #2d5a3f;
+            margin-bottom: 8px;
+        }
+
+        .info-card p {
+            color: #666;
+            font-size: 0.85rem;
+        }
+
+        @media (max-width: 768px) {
+            .preview-container {
+                flex-direction: column;
+            }
+
+            .image-preview {
+                max-width: 100%;
+            }
+
+            header h1 {
+                font-size: 1.8rem;
+            }
+
+            .age-display .age {
+                font-size: 2.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><span class="icon">🦌</span> DeerAge</h1>
+            <p>AI-Powered Deer Jawbone Age Classification</p>
+        </header>
+
+        <div class="main-card">
+            <div class="upload-section">
+                <div class="drop-zone" id="dropZone">
+                    <div class="icon">📷</div>
+                    <h3>Drop jawbone image here</h3>
+                    <p>or click to browse files</p>
+                    <p style="margin-top: 10px; font-size: 0.8rem;">Supports: JPG, PNG, WebP</p>
+                    <input type="file" id="fileInput" accept="image/*">
+                </div>
+                <button class="btn" id="uploadBtn" disabled>
+                    Analyze Jawbone
+                </button>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Analyzing jawbone image...</p>
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+
+            <div class="preview-section" id="previewSection">
+                <div class="preview-container">
+                    <div class="image-preview">
+                        <img id="previewImage" src="" alt="Uploaded jawbone">
+                        <div class="filename" id="fileName"></div>
+                    </div>
+                    <div class="results-panel">
+                        <div class="result-card">
+                            <h2>🎯 Age Prediction</h2>
+
+                            <div class="age-display">
+                                <div class="age" id="predictedAge">--</div>
+                                <div class="label" id="ageDescription">Years Old</div>
+                            </div>
+
+                            <div style="text-align: center; margin-bottom: 15px;">
+                                <span class="reliability-badge" id="reliabilityBadge">--</span>
+                            </div>
+
+                            <div class="confidence-bar">
+                                <div class="label">
+                                    <span>Confidence</span>
+                                    <span id="confidencePercent">--%</span>
+                                </div>
+                                <div class="bar">
+                                    <div class="fill" id="confidenceFill" style="width: 0%"></div>
+                                </div>
+                            </div>
+
+                            <div class="characteristics" id="characteristics">
+                                <strong>Characteristics:</strong> <span id="charText">--</span>
+                            </div>
+
+                            <div class="warnings" id="warnings"></div>
+
+                            <div class="alternatives" id="alternatives">
+                                <h4>Alternative Predictions:</h4>
+                                <div id="altList"></div>
+                            </div>
+
+                            <button class="btn new-upload-btn" id="newUploadBtn">
+                                Upload Another Image
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <div class="info-grid">
+                    <div class="info-card">
+                        <div class="icon">🔬</div>
+                        <h4>Scientific Method</h4>
+                        <p>Based on tooth replacement and wear patterns used by wildlife biologists</p>
+                    </div>
+                    <div class="info-card">
+                        <div class="icon">📊</div>
+                        <h4>7 Age Classes</h4>
+                        <p>0.5 to 6.5+ years in half-year increments</p>
+                    </div>
+                    <div class="info-card">
+                        <div class="icon">⚠️</div>
+                        <h4>Reliability Notes</h4>
+                        <p>Most accurate for deer under 5.5 years old</p>
+                    </div>
+                    <div class="info-card">
+                        <div class="icon">🤖</div>
+                        <h4>AI-Powered</h4>
+                        <p>Deep learning model trained on jawbone imagery</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>DeerAge - Jawbone Age Classification System</p>
+            <p style="margin-top: 5px;">Based on research from National Deer Association, Texas A&M, and Missouri University</p>
+        </footer>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const loading = document.getElementById('loading');
+        const previewSection = document.getElementById('previewSection');
+        const previewImage = document.getElementById('previewImage');
+        const fileName = document.getElementById('fileName');
+        const errorMessage = document.getElementById('errorMessage');
+        const newUploadBtn = document.getElementById('newUploadBtn');
+
+        let selectedFile = null;
+
+        // Drop zone events
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showError('Please select an image file.');
+                return;
+            }
+
+            selectedFile = file;
+            uploadBtn.disabled = false;
+
+            // Show preview in drop zone
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                dropZone.innerHTML = `
+                    <img src="${e.target.result}" style="max-height: 200px; border-radius: 10px;">
+                    <p style="margin-top: 10px; color: #2d5a3f; font-weight: 600;">${file.name}</p>
+                    <p style="color: #888; font-size: 0.85rem;">Click "Analyze Jawbone" to continue</p>
+                `;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        uploadBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            // Show loading
+            loading.classList.add('active');
+            previewSection.classList.remove('active');
+            errorMessage.classList.remove('active');
+            uploadBtn.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Prediction failed');
+                }
+
+                const result = await response.json();
+                displayResults(result);
+
+            } catch (error) {
+                showError('Failed to analyze image. Please try again.');
+                console.error(error);
+            } finally {
+                loading.classList.remove('active');
+                uploadBtn.disabled = false;
+            }
+        });
+
+        function displayResults(result) {
+            // Set preview image
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+            };
+            reader.readAsDataURL(selectedFile);
+
+            fileName.textContent = result.filename;
+
+            // Set main prediction
+            const pred = result.prediction;
+            document.getElementById('predictedAge').textContent = pred.age_estimate + ' yrs';
+            document.getElementById('ageDescription').textContent = pred.description;
+
+            // Confidence
+            const confPercent = (pred.confidence * 100).toFixed(1);
+            document.getElementById('confidencePercent').textContent = confPercent + '%';
+            const confFill = document.getElementById('confidenceFill');
+            confFill.style.width = confPercent + '%';
+            confFill.className = 'fill ' + getConfidenceClass(pred.confidence);
+
+            // Reliability badge
+            const badge = document.getElementById('reliabilityBadge');
+            badge.textContent = pred.reliability + ' reliability';
+            badge.className = 'reliability-badge ' + pred.reliability;
+
+            // Characteristics
+            document.getElementById('charText').textContent = pred.characteristics || 'N/A';
+
+            // Warnings
+            const warningsDiv = document.getElementById('warnings');
+            warningsDiv.innerHTML = '';
+            if (result.warnings && result.warnings.length > 0) {
+                result.warnings.forEach(warning => {
+                    warningsDiv.innerHTML += `
+                        <div class="warning-item">
+                            <span class="icon">⚠️</span>
+                            <span>${warning}</span>
+                        </div>
+                    `;
+                });
+            }
+
+            // Alternatives
+            const altList = document.getElementById('altList');
+            altList.innerHTML = '';
+            if (result.alternatives && result.alternatives.length > 0) {
+                result.alternatives.forEach(alt => {
+                    altList.innerHTML += `
+                        <div class="alt-item">
+                            <span class="age">${alt.age_class} years</span>
+                            <span class="conf">${alt.confidence_percent}</span>
+                        </div>
+                    `;
+                });
+                document.getElementById('alternatives').style.display = 'block';
+            } else {
+                document.getElementById('alternatives').style.display = 'none';
+            }
+
+            previewSection.classList.add('active');
+        }
+
+        function getConfidenceClass(confidence) {
+            if (confidence >= 0.7) return 'high';
+            if (confidence >= 0.4) return 'moderate';
+            return 'low';
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('active');
+        }
+
+        newUploadBtn.addEventListener('click', () => {
+            // Reset everything
+            selectedFile = null;
+            fileInput.value = '';
+            uploadBtn.disabled = true;
+            previewSection.classList.remove('active');
+            errorMessage.classList.remove('active');
+
+            // Reset drop zone
+            dropZone.innerHTML = `
+                <div class="icon">📷</div>
+                <h3>Drop jawbone image here</h3>
+                <p>or click to browse files</p>
+                <p style="margin-top: 10px; font-size: 0.8rem;">Supports: JPG, PNG, WebP</p>
+                <input type="file" id="fileInput" accept="image/*">
+            `;
+
+            // Re-attach file input listener
+            const newFileInput = document.getElementById('fileInput');
+            newFileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleFile(e.target.files[0]);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
