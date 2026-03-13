@@ -361,6 +361,64 @@
             background: #5a6268;
         }
 
+        .feedback-section {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 1px solid #e9ecef;
+        }
+
+        .feedback-section h4 {
+            margin-bottom: 10px;
+            color: #2d5a3f;
+            font-size: 0.95rem;
+        }
+
+        .feedback-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .feedback-controls select,
+        .feedback-controls textarea {
+            width: 100%;
+            border: 1px solid #ced4da;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 0.9rem;
+            font-family: inherit;
+        }
+
+        .feedback-controls textarea {
+            resize: vertical;
+            min-height: 90px;
+        }
+
+        .feedback-send-btn {
+            width: 100%;
+            margin-top: 0;
+        }
+
+        .feedback-status {
+            margin-top: 8px;
+            font-size: 0.85rem;
+            display: none;
+        }
+
+        .feedback-status.active {
+            display: block;
+        }
+
+        .feedback-status.success {
+            color: #155724;
+        }
+
+        .feedback-status.error {
+            color: #721c24;
+        }
+
         footer {
             text-align: center;
             padding: 30px;
@@ -492,6 +550,25 @@
                                 <div id="altList"></div>
                             </div>
 
+                            <div class="feedback-section" id="feedbackSection">
+                                <h4>Share Feedback</h4>
+                                <div class="feedback-controls">
+                                    <select id="ratingScore">
+                                        <option value="">Select rating score</option>
+                                        <option value="5">5 - Excellent</option>
+                                        <option value="4">4 - Good</option>
+                                        <option value="3">3 - Average</option>
+                                        <option value="2">2 - Poor</option>
+                                        <option value="1">1 - Very Poor</option>
+                                    </select>
+                                    <textarea id="feedbackText" placeholder="Write your feedback (optional)"></textarea>
+                                    <button class="btn feedback-send-btn" id="sendFeedbackBtn" disabled>
+                                        Send Feedback
+                                    </button>
+                                    <div class="feedback-status" id="feedbackStatus"></div>
+                                </div>
+                            </div>
+
                             <button class="btn new-upload-btn" id="newUploadBtn">
                                 Upload Another Image
                             </button>
@@ -542,8 +619,13 @@
         const fileName = document.getElementById('fileName');
         const errorMessage = document.getElementById('errorMessage');
         const newUploadBtn = document.getElementById('newUploadBtn');
+        const ratingScore = document.getElementById('ratingScore');
+        const feedbackText = document.getElementById('feedbackText');
+        const sendFeedbackBtn = document.getElementById('sendFeedbackBtn');
+        const feedbackStatus = document.getElementById('feedbackStatus');
 
         let selectedFile = null;
+        let currentPredictionId = null;
 
         // Drop zone events
         dropZone.addEventListener('click', () => fileInput.click());
@@ -628,6 +710,8 @@
         });
 
         function displayResults(result) {
+            currentPredictionId = result.prediction_id || null;
+
             // Set preview image
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -688,6 +772,11 @@
                 document.getElementById('alternatives').style.display = 'none';
             }
 
+            ratingScore.value = '';
+            feedbackText.value = '';
+            sendFeedbackBtn.disabled = !currentPredictionId;
+            showFeedbackStatus('');
+
             previewSection.classList.add('active');
         }
 
@@ -702,13 +791,68 @@
             errorMessage.classList.add('active');
         }
 
+        function showFeedbackStatus(message, type = '') {
+            if (!message) {
+                feedbackStatus.textContent = '';
+                feedbackStatus.className = 'feedback-status';
+                return;
+            }
+
+            feedbackStatus.textContent = message;
+            feedbackStatus.className = `feedback-status active ${type}`;
+        }
+
+        sendFeedbackBtn.addEventListener('click', async () => {
+            if (!currentPredictionId) {
+                showFeedbackStatus('Prediction reference is missing. Please analyze an image again.', 'error');
+                return;
+            }
+
+            const selectedRating = ratingScore.value;
+            if (!selectedRating) {
+                showFeedbackStatus('Please select a rating score before sending feedback.', 'error');
+                return;
+            }
+
+            sendFeedbackBtn.disabled = true;
+            showFeedbackStatus('Sending feedback...');
+
+            try {
+                const formData = new FormData();
+                formData.append('prediction_id', String(currentPredictionId));
+                formData.append('rating_score', selectedRating);
+                formData.append('feedback', feedbackText.value.trim());
+
+                const response = await fetch('/feedback', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to send feedback');
+                }
+
+                showFeedbackStatus('Thanks! Your feedback was sent successfully.', 'success');
+            } catch (error) {
+                showFeedbackStatus('Unable to send feedback right now. Please try again.', 'error');
+                console.error(error);
+            } finally {
+                sendFeedbackBtn.disabled = !currentPredictionId;
+            }
+        });
+
         newUploadBtn.addEventListener('click', () => {
             // Reset everything
             selectedFile = null;
+            currentPredictionId = null;
             fileInput.value = '';
             uploadBtn.disabled = true;
             previewSection.classList.remove('active');
             errorMessage.classList.remove('active');
+            ratingScore.value = '';
+            feedbackText.value = '';
+            sendFeedbackBtn.disabled = true;
+            showFeedbackStatus('');
 
             // Reset drop zone
             dropZone.innerHTML = `

@@ -9,7 +9,7 @@ from uuid import uuid4
 
 import torch
 import torch.nn as nn
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -182,10 +182,21 @@ def init_database(db_path: str):
                 saved_image_path TEXT,
                 age_estimate TEXT,
                 confidence REAL,
-                reliability TEXT
+                reliability TEXT,
+                rating_score INTEGER,
+                feedback TEXT,
+                reply TEXT
             )
             """
         )
+
+        existing_columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(predictions)").fetchall()
+        }
+        if "rating_score" not in existing_columns:
+            conn.execute("ALTER TABLE predictions ADD COLUMN rating_score INTEGER")
+
         conn.commit()
 
 
@@ -196,12 +207,12 @@ def save_prediction_result(
     saved_filename: str,
     saved_image_path: str,
     response_payload: dict,
-):
+) -> int:
     prediction = response_payload.get("prediction", {})
     created_at = datetime.utcnow().isoformat(timespec='seconds') + "Z"
 
     with sqlite3.connect(db_path) as conn:
-        conn.execute(
+        cursor = conn.execute(
             """
             INSERT INTO predictions (
                 created_at,
@@ -226,6 +237,27 @@ def save_prediction_result(
             ),
         )
         conn.commit()
+        return cursor.lastrowid
+
+
+def save_prediction_feedback(
+    db_path: str,
+    prediction_id: int,
+    rating_score: int,
+    feedback: Optional[str],
+) -> bool:
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.execute(
+            """
+            UPDATE predictions
+            SET rating_score = ?,
+                feedback = ?
+            WHERE id = ?
+            """,
+            (rating_score, feedback, prediction_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
 
 
 def to_upload_url(saved_image_path: Optional[str]) -> Optional[str]:
@@ -350,6 +382,34 @@ async def get_history(usermail: str):
     })
 
 
+@app.post('/feedback')
+async def submit_feedback(
+    prediction_id: int = Form(...),
+    rating_score: int = Form(...),
+    feedback: Optional[str] = Form(None),
+):
+    if rating_score < 1 or rating_score > 5:
+        raise HTTPException(status_code=400, detail="rating_score must be between 1 and 5")
+
+    feedback_text = (feedback or "").strip()
+    if len(feedback_text) > 2000:
+        raise HTTPException(status_code=400, detail="feedback is too long (max 2000 chars)")
+
+    updated = save_prediction_feedback(
+        db_path=SQLITE_DB_PATH,
+        prediction_id=prediction_id,
+        rating_score=rating_score,
+        feedback=feedback_text or None,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="prediction not found")
+
+    return JSONResponse(content={
+        "ok": True,
+        "prediction_id": prediction_id,
+    })
+
+
 @app.post('/predict')
 async def predict(file: UploadFile = File(...), usermail: Optional[str] = None):
     """
@@ -435,7 +495,7 @@ async def predict(file: UploadFile = File(...), usermail: Optional[str] = None):
     if warnings:
         response["warnings"] = warnings
 
-    save_prediction_result(
+    prediction_id = save_prediction_result(
         db_path=SQLITE_DB_PATH,
         usermail=usermail,
         original_filename=file.filename,
@@ -443,5 +503,7 @@ async def predict(file: UploadFile = File(...), usermail: Optional[str] = None):
         saved_image_path=str(image_path),
         response_payload=response,
     )
+
+    response["prediction_id"] = prediction_id
 
     return JSONResponse(content=response)
