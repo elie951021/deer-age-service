@@ -9,7 +9,7 @@ from uuid import uuid4
 
 import torch
 import torch.nn as nn
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Request
 from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -318,7 +318,6 @@ def get_prediction_history_by_usermail(db_path: str, usermail: str):
 
     return history
 
-
 @app.on_event("startup")
 def startup_event():
     global model, idx_to_class, tfm, device
@@ -368,11 +367,21 @@ async def get_age_classes():
     })
 
 
-@app.get('/history')
-async def get_history(usermail: str):
-    usermail = usermail.strip()
+@app.post('/history')
+async def get_history(request: Request, usermail: Optional[str] = Form(None)):
+    resolved_usermail = (usermail or "").strip()
+    if not resolved_usermail:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            try:
+                payload = await request.json()
+            except Exception:
+                payload = {}
+            resolved_usermail = str(payload.get("usermail") or "").strip()
+
+    usermail = resolved_usermail
     if not usermail:
-        raise HTTPException(status_code=400, detail="Query parameter 'usermail' is required")
+        raise HTTPException(status_code=400, detail="'usermail' is required (form-data or JSON body)")
 
     history = get_prediction_history_by_usermail(SQLITE_DB_PATH, usermail)
     return JSONResponse(content={
