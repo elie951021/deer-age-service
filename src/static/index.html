@@ -381,7 +381,7 @@
             gap: 10px;
         }
 
-        .feedback-controls select,
+        .feedback-controls input,
         .feedback-controls textarea {
             width: 100%;
             border: 1px solid #ced4da;
@@ -553,14 +553,7 @@
                             <div class="feedback-section" id="feedbackSection">
                                 <h4>Share Feedback</h4>
                                 <div class="feedback-controls">
-                                    <select id="ratingScore">
-                                        <option value="">Select rating score</option>
-                                        <option value="5">5 - Excellent</option>
-                                        <option value="4">4 - Good</option>
-                                        <option value="3">3 - Average</option>
-                                        <option value="2">2 - Poor</option>
-                                        <option value="1">1 - Very Poor</option>
-                                    </select>
+                                    <input id="exactAge" type="text" placeholder="Enter exact age (e.g., 3.5 or 6.5+)" />
                                     <textarea id="feedbackText" placeholder="Write your feedback (optional)"></textarea>
                                     <button class="btn feedback-send-btn" id="sendFeedbackBtn" disabled>
                                         Send Feedback
@@ -619,7 +612,7 @@
         const fileName = document.getElementById('fileName');
         const errorMessage = document.getElementById('errorMessage');
         const newUploadBtn = document.getElementById('newUploadBtn');
-        const ratingScore = document.getElementById('ratingScore');
+        const exactAge = document.getElementById('exactAge');
         const feedbackText = document.getElementById('feedbackText');
         const sendFeedbackBtn = document.getElementById('sendFeedbackBtn');
         const feedbackStatus = document.getElementById('feedbackStatus');
@@ -772,7 +765,7 @@
                 document.getElementById('alternatives').style.display = 'none';
             }
 
-            ratingScore.value = '';
+            exactAge.value = '';
             feedbackText.value = '';
             sendFeedbackBtn.disabled = !currentPredictionId;
             showFeedbackStatus('');
@@ -808,9 +801,9 @@
                 return;
             }
 
-            const selectedRating = ratingScore.value;
-            if (!selectedRating) {
-                showFeedbackStatus('Please select a rating score before sending feedback.', 'error');
+            const selectedExactAge = exactAge.value.trim();
+            if (!selectedExactAge) {
+                showFeedbackStatus('Please enter exact age before sending feedback.', 'error');
                 return;
             }
 
@@ -820,7 +813,7 @@
             try {
                 const formData = new FormData();
                 formData.append('prediction_id', String(currentPredictionId));
-                formData.append('rating_score', selectedRating);
+                formData.append('exact_age', selectedExactAge);
                 formData.append('feedback', feedbackText.value.trim());
 
                 const response = await fetch('/feedback', {
@@ -849,7 +842,7 @@
             uploadBtn.disabled = true;
             previewSection.classList.remove('active');
             errorMessage.classList.remove('active');
-            ratingScore.value = '';
+            exactAge.value = '';
             feedbackText.value = '';
             sendFeedbackBtn.disabled = true;
             showFeedbackStatus('');

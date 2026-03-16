@@ -183,21 +183,12 @@ def init_database(db_path: str):
                 age_estimate TEXT,
                 confidence REAL,
                 reliability TEXT,
-                rating_score INTEGER,
+                exact_age TEXT,
                 feedback TEXT,
                 reply TEXT
             )
             """
         )
-
-        existing_columns = {
-            row[1]
-            for row in conn.execute("PRAGMA table_info(predictions)").fetchall()
-        }
-        if "rating_score" not in existing_columns:
-            conn.execute("ALTER TABLE predictions ADD COLUMN rating_score INTEGER")
-
-        conn.commit()
 
 
 def save_prediction_result(
@@ -243,18 +234,18 @@ def save_prediction_result(
 def save_prediction_feedback(
     db_path: str,
     prediction_id: int,
-    rating_score: int,
+    exact_age: str,
     feedback: Optional[str],
 ) -> bool:
     with sqlite3.connect(db_path) as conn:
         cursor = conn.execute(
             """
             UPDATE predictions
-            SET rating_score = ?,
+            SET exact_age = ?,
                 feedback = ?
             WHERE id = ?
             """,
-            (rating_score, feedback, prediction_id),
+            (exact_age, feedback, prediction_id),
         )
         conn.commit()
         return cursor.rowcount > 0
@@ -293,7 +284,7 @@ def get_prediction_history_by_usermail(db_path: str, usermail: str):
                 confidence,
                 reliability,
                 feedback,
-                rating_score
+                exact_age
             FROM predictions
             WHERE lower(usermail) = lower(?)
             ORDER BY created_at DESC, id DESC
@@ -310,7 +301,7 @@ def get_prediction_history_by_usermail(db_path: str, usermail: str):
             "original_filename": row["original_filename"],
             "saved_image_url": to_upload_url(row["saved_image_path"]),
             "feedback": row["feedback"],
-            "rating_score": row["rating_score"],
+            "exact_age": row["exact_age"],
             "prediction": {
                 "age_estimate": row["age_estimate"],
                 "confidence": row["confidence"],
@@ -396,11 +387,14 @@ async def get_history(request: Request, usermail: Optional[str] = Form(None)):
 @app.post('/feedback')
 async def submit_feedback(
     prediction_id: int = Form(...),
-    rating_score: int = Form(...),
+    exact_age: str = Form(...),
     feedback: Optional[str] = Form(None),
 ):
-    if rating_score < 1 or rating_score > 5:
-        raise HTTPException(status_code=400, detail="rating_score must be between 1 and 5")
+    exact_age_text = exact_age.strip()
+    if not exact_age_text:
+        raise HTTPException(status_code=400, detail="exact_age is required")
+    if len(exact_age_text) > 50:
+        raise HTTPException(status_code=400, detail="exact_age is too long (max 50 chars)")
 
     feedback_text = (feedback or "").strip()
     if len(feedback_text) > 2000:
@@ -409,7 +403,7 @@ async def submit_feedback(
     updated = save_prediction_feedback(
         db_path=SQLITE_DB_PATH,
         prediction_id=prediction_id,
-        rating_score=rating_score,
+        exact_age=exact_age_text,
         feedback=feedback_text or None,
     )
     if not updated:
