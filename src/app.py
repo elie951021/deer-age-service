@@ -311,6 +311,19 @@ def get_prediction_history_by_usermail(db_path: str, usermail: str):
 
     return history
 
+
+def clear_prediction_history_by_usermail(db_path: str, usermail: str) -> int:
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.execute(
+            """
+            DELETE FROM predictions
+            WHERE lower(usermail) = lower(?)
+            """,
+            (usermail,),
+        )
+        conn.commit()
+        return max(cursor.rowcount, 0)
+
 @app.on_event("startup")
 def startup_event():
     global model, idx_to_class, tfm, device
@@ -381,6 +394,30 @@ async def get_history(request: Request, usermail: Optional[str] = Form(None)):
         "usermail": usermail,
         "count": len(history),
         "history": history,
+    })
+
+
+@app.post('/history/clear')
+async def clear_history(request: Request, usermail: Optional[str] = Form(None)):
+    resolved_usermail = (usermail or "").strip()
+    if not resolved_usermail:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            try:
+                payload = await request.json()
+            except Exception:
+                payload = {}
+            resolved_usermail = str(payload.get("usermail") or "").strip()
+
+    usermail = resolved_usermail
+    if not usermail:
+        raise HTTPException(status_code=400, detail="'usermail' is required (form-data or JSON body)")
+
+    deleted_count = clear_prediction_history_by_usermail(SQLITE_DB_PATH, usermail)
+    return JSONResponse(content={
+        "ok": True,
+        "usermail": usermail,
+        "deleted_count": deleted_count,
     })
 
 
