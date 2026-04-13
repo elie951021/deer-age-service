@@ -53,7 +53,7 @@ def make_model(model_name: str, num_classes: int):
         raise ValueError(f"Unsupported model: {model_name}")
 
 
-def load_model(checkpoint_path: str, num_classes: int, model_name: str | None):
+def load_model(checkpoint_path: str, num_classes: int, model_name: str):
     state = torch.load(checkpoint_path, map_location='cpu')
     ckpt_args = state.get('args', {})
     inferred_model = ckpt_args.get('model') if isinstance(ckpt_args, dict) else None
